@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  name            String
+  email           String    @unique
+  password        String
+  phone           String?
+  role            UserRole
+  emailVerified   Boolean   @default(false)
+  otpCode         String?
+  otpExpiresAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  buyerProfile    BuyerProfile?
+  store           Store?
+  sessions        Session[]
+  reviews         Review[]
+  orders          Order[]   @relation("buyerOrders")
+}
+
+model BuyerProfile {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String   @unique
+  address    String?
+  cityId     String?
+  postalCode String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Store {
+  id                 String             @id @default(uuid())
+  user               User               @relation(fields: [userId], references: [id])
+  userId             String             @unique
+  storeName          String
+  description        String?
+  address            String
+  cityId             String
+  latitude           Float?
+  longitude          Float?
+  bankAccountName    String
+  bankAccountNumber  String
+  bankName           String
+  supportedCouriers  Courier[]
+  balance            BigInt             @default(0)
+  status             StoreStatus        @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  products           Product[]
+  orders             Order[]
+  walletTransactions WalletTransaction[]
+}
+
+model Product {
+  id          String          @id @default(uuid())
+  store       Store           @relation(fields: [storeId], references: [id])
+  storeId     String
+  name        String
+  description String
+  categoryId  String
+  weight      Int
+  slug        String          @unique
+  status      ProductStatus   @default(ACTIVE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  variants    ProductVariant[]
+}
+
+model ProductVariant {
+  id            String          @id @default(uuid())
+  product       Product         @relation(fields: [productId], references: [id])
+  productId     String
+  color         String
+  colorHex      String?
+  size          String
+  price         Int
+  stock         Int
+  sku           String          @unique
+  extraPrice    Int             @default(0)
+  weight        Int
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  cartItems     Cart[]
+  orderItems    OrderItem[]
+}
+
+model Cart {
+  id               String          @id @default(uuid())
+  user             User            @relation(fields: [userId], references: [id])
+  userId           String
+  productVariant   ProductVariant  @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  quantity         Int             @default(1)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([userId, productVariantId])
+}
+
+model Order {
+  id             String        @id @default(uuid())
+  orderNumber    String        @unique
+  buyer          User          @relation("buyerOrders", fields: [buyerId], references: [id])
+  buyerId        String
+  store          Store         @relation(fields: [storeId], references: [id])
+  storeId        String
+  totalPrice     Int
+  shippingCost   Int
+  subtotal       Int
+  discount       Int            @default(0)
+  platformFee    Int            @default(0)
+  status         OrderStatus
+  trackingNumber String?
+  courier        String?
+  paymentMethod  PaymentMethod
+  paymentStatus  PaymentStatus
+  shippingAddress String
+  cityId         String
+  districtId     String
+  postalCode     String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  orderItems     OrderItem[]
+  review         Review?
+}
+
+model OrderItem {
+  id               String         @id @default(uuid())
+  order            Order          @relation(fields: [orderId], references: [id])
+  orderId          String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  quantity         Int
+  priceAtPurchase  Int
+  weight           Int
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  review           Review?
+}
+
+model WalletTransaction {
+  id        String            @id @default(uuid())
+  store     Store             @relation(fields: [storeId], references: [id])
+  storeId   String
+  amount    Int
+  type      WalletTxType
+  status    WalletTxStatus
+  reference String?
+  metadata  Json?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model Review {
+  id           String      @id @default(uuid())
+  orderItem    OrderItem   @relation(fields: [orderItemId], references: [id])
+  orderItemId  String      @unique
+  user         User        @relation(fields: [userId], references: [id])
+  userId       String
+  rating       Int
+  comment      String?
+  mediaUrls    String[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum StoreStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  OUT_OF_STOCK
+  INACTIVE
+}
+
+enum OrderStatus {
+  UNPAID
+  PAID
+  PACKING
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentMethod {
+  VA
+  EWALLET
+  QRIS
+  COD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum WalletTxType {
+  INCOME
+  WITHDRAW
+  COMMISSION
+  REFUND
+}
+
+enum WalletTxStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum Courier {
+  JNE
+  JT
+  SICEPAT
+  OTHER
+}
